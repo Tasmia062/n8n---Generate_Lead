@@ -32,13 +32,13 @@ This n8n workflow automates the process of finding and collecting business leads
 ### 1. Clone & Import
 ```bash
 # Download the workflow
-git clone https://github.com/YOUR_USERNAME/lead-scraper-workflow.git
-cd lead-scraper-workflow
+git clone https://github.com/YOUR_USERNAME/lead_scraper_workflow.git
+cd lead_scraper_workflow
 ```
 
 In n8n:
 - Go to **Workflows** → **Import from File**
-- Select `lead-scraper-workflow.json`
+- Select `lead_scraper_workflow.json`
 
 
 ### 2. Set Up Credentials
