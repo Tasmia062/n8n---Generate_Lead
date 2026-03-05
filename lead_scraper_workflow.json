@@ -1,0 +1,501 @@
+{
+  "name": "lead_scraper_workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a9dd30e8-61e3-47d3-9654-794dfef22417",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        560,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Finding_lead",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Zip_code",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A1:D3"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        752,
+        896
+      ],
+      "id": "7684eb79-610c-4ca8-a8ba-64bd1fb64f07",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d833d086-c7af-4d2e-9245-44ccf6a943aa",
+              "name": "currentLat",
+              "value": "={{ $json.latitude }}",
+              "type": "number"
+            },
+            {
+              "id": "369e0c4d-f5f0-4897-8dc5-27b646b14837",
+              "name": "currentLon",
+              "value": "={{ $json.longitude }}",
+              "type": "number"
+            },
+            {
+              "id": "da6ab8fb-f69a-493d-9fd3-2aee9fe37cab",
+              "name": "currentZip",
+              "value": "={{ $json.zip }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1232,
+        912
+      ],
+      "id": "57e40a1c-d4d7-4cdd-a099-f459dc381deb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "=google_maps"
+            },
+            {
+              "name": "q",
+              "value": "=hospital"
+            },
+            {
+              "name": "ll",
+              "value": "=@{{ $json.latitude }},{{ $json.longitude }},14z"
+            },
+            {
+              "name": "type",
+              "value": "search"
+            },
+            {
+              "name": "api_key",
+              "value": "YOUR_SERPAPI_KEY"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1424,
+        912
+      ],
+      "id": "b8b61987-4cb8-43b4-b952-25f99db095f5",
+      "name": "Find Leads(SerpAPI)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\n\n// SerpAPI returns results in 'local_results'\nconst businesses = response.local_results || [];\n\nif (businesses.length === 0) {\n  console.log('No businesses found');\n  return [];\n}\n\nconsole.log(`Found ${businesses.length} hospitals`);\n\n// Get the searched ZIP for reference\nconst searchedZip = $('Edit Fields').first().json.currentZip || '';\n\nreturn businesses.map(biz => {\n  // Get GPS coordinates\n  const lat = biz.gps_coordinates?.latitude || '';\n  const lon = biz.gps_coordinates?.longitude || '';\n  const departments = biz.types ? biz.types.join(', ') : '';\n  // Get service types/categories\n  const services = biz.types ? biz.types.join(', ') : '';\n  \n  // Format operating hours better\n  const hours = biz.hours || biz.open_state || '';\n  \n  return {\n    json: {\n      searchedZip: searchedZip,\n      hospitalName: biz.title || '',\n      address: biz.address || '',\n      latitude: lat,\n      longitude: lon,\n      phone: biz.phone || '',\n      rating: biz.rating || '',\n      hospitalType: biz.type || '',\n      departments: departments,\n      services: services,\n      hours: hours,\n      website: biz.website || '',\n      googleMapsUrl: biz.place_id \n        ? `https://www.google.com/maps/place/?q=place_id:${biz.place_id}` \n        : '',\n      placeId: biz.place_id || '',\n      scrapedDate: new Date().toISOString().split('T')[0]\n    }\n  };\n});"
+      },
+      "id": "eeeb64d5-8176-4154-94f5-84d5b714c201",
+      "name": "Extract Hospital Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        912
+      ],
+      "id": "73fa7884-ca6c-4acd-b286-6e98bf317d4d",
+      "name": "Wait",
+      "webhookId": "355dd794-c428-4351-a49b-ed9dba881427"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Finding_lead",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID               /edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 848787323,
+          "mode": "list",
+          "cachedResultName": "Lead_info",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=848787323"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "searchedZip",
+              "displayName": "searchedZip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hospitalName",
+              "displayName": "hospitalName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "latitude",
+              "displayName": "latitude",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "longitude",
+              "displayName": "longitude",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rating",
+              "displayName": "rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hospitalType",
+              "displayName": "hospitalType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "departments",
+              "displayName": "departments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "services",
+              "displayName": "services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hours",
+              "displayName": "hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "googleMapsUrl",
+              "displayName": "googleMapsUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "placeId",
+              "displayName": "placeId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "scrapedDate",
+              "displayName": "scrapedDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "db280628-d7e4-4f7e-848e-737180a235af",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1808,
+        912
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        992,
+        896
+      ],
+      "id": "08ca88ef-8023-435d-9f0a-6e63bcecaea3",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "content": "## Lead Scraper Workflow\n\n",
+        "height": 80,
+        "width": 288
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1216,
+        752
+      ],
+      "typeVersion": 1,
+      "id": "62eba6b0-3798-4e10-b50f-c88937c46803",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Find Leads(SerpAPI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Leads(SerpAPI)": {
+      "main": [
+        [
+          {
+            "node": "Extract Hospital Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Hospital Data": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f414a625-c424-4779-b988-374b6c9a723b",
+  "meta": {
+    "instanceId": "b309a1b48a45ba20c065f0d79650b0fae097e6992a38c33e88eacf60746ed022"
+  },
+  "id": "Za8CubcwLZpBBk09Br1Bi",
+  "tags": []
+}
